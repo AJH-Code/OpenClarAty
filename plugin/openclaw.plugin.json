@@ -1,0 +1,67 @@
+{
+  "id": "memory-clara",
+  "name": "Memory (CLaRa + RAG)",
+  "description": "Dual memory retrieval — CLaRa latent reasoning + Qwen3 embedding RAG",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "endpoint": {
+        "type": "string",
+        "default": "http://192.168.88.80:8300",
+        "description": "CLaRa service endpoint"
+      },
+      "autoRecall": {
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically inject relevant memories before agent starts"
+      },
+      "topK": {
+        "type": "number",
+        "default": 3,
+        "description": "Number of CLaRa memories to retrieve"
+      },
+      "minScore": {
+        "type": "number",
+        "default": 0.15,
+        "description": "Minimum relevance score to include"
+      },
+      "timeoutMs": {
+        "type": "number",
+        "default": 3000,
+        "description": "Timeout for requests in ms"
+      },
+      "rag": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable RAG embedding search alongside CLaRa"
+          },
+          "embeddingUrl": {
+            "type": "string",
+            "default": "http://192.168.88.80:5002/v1/embeddings",
+            "description": "Embedding API endpoint"
+          },
+          "embeddingModel": {
+            "type": "string",
+            "default": "Qwen3-Embedding-8B-Q8_0",
+            "description": "Embedding model name"
+          },
+          "dbPath": {
+            "type": "string",
+            "default": "~/.openclaw/memory/main.sqlite",
+            "description": "Path to OpenClaw memory SQLite DB"
+          },
+          "topK": {
+            "type": "number",
+            "default": 3,
+            "description": "Number of RAG results to retrieve"
+          }
+        }
+      }
+    }
+  }
+}

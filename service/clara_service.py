@@ -3,7 +3,7 @@
 CLaRa Memory Service — FastAPI wrapper for CLaRa memory retrieval.
 
 Runs on the NVIDIA machine, wraps the existing CLaRaMemorySystem.
-Provides /retrieve (search + generate) and /store (ingest) endpoints.
+Provides /retrieve (search + generate), /store (ingest), and /classify endpoints.
 
 Usage:
     cd /home/worker/workspace/ml-clara
@@ -20,6 +20,7 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Optional
 
+import torch
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,7 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # These will be imported after path setup in main()
 memory_system = None
-app = FastAPI(title="CLaRa Memory Service", version="0.1.0")
+app = FastAPI(title="CLaRa Memory Service", version="0.2.0")
 
 # CORS for local network access
 app.add_middleware(
@@ -67,6 +68,19 @@ class StoreRequest(BaseModel):
     role: str = Field("user", description="Message role (user/assistant)")
     session_id: str = Field("default", description="Session identifier")
     metadata: Optional[Dict] = Field(None, description="Additional metadata")
+
+
+class ClassifyRequest(BaseModel):
+    """Classify a message as FILLER or SEARCH."""
+    text: str = Field(..., description="User message to classify")
+    max_tokens: int = Field(3, description="Max tokens to generate (should be 1-3)")
+
+
+class ClassifyResponse(BaseModel):
+    """Classification result."""
+    classification: str = Field(..., description="FILLER or SEARCH")
+    raw_output: str = Field(..., description="Raw model output for debugging")
+    time_ms: float = Field(..., description="Inference time in milliseconds")
 
 
 class MemoryItem(BaseModel):
@@ -178,6 +192,129 @@ async def health():
         "model": stats["model_name"],
         "timestamp": datetime.now().isoformat()
     }
+
+
+@app.post("/classify", response_model=ClassifyResponse)
+async def classify(req: ClassifyRequest):
+    """
+    Classify a message as FILLER (skip memory search) or SEARCH (worth querying).
+
+    Uses the already-loaded Mistral-7B decoder with LoRA adapters temporarily
+    disabled, so it behaves like vanilla Mistral-7B-Instruct for classification.
+    """
+    global memory_system
+    if memory_system is None:
+        raise HTTPException(status_code=503, detail="Memory system not initialized")
+
+    log.info(f"🏷️  CLASSIFY: {req.text[:80]}...")
+
+    t0 = time.time()
+
+    try:
+        model = memory_system.model  # CLaRa model
+        decoder = model.decoder       # The Mistral-7B CausalLM
+        tokenizer = model.decoder_tokenizer
+
+        # Temporarily disable LoRA adapters for vanilla Mistral behavior
+        decoder.disable_adapters()
+
+        try:
+            # Build classification prompt
+            messages = [
+                {
+                    "role": "user",
+                    "content": (
+                        "Classify this chat message as either FILLER or SEARCH.\n"
+                        "FILLER = casual/conversational with no specific topic "
+                        "(greetings, reactions, confirmations, short replies, banter).\n"
+                        "SEARCH = contains a specific topic, question, name, project, "
+                        "or reference to past events/conversations worth looking up.\n\n"
+                        "Key rule: if a message mentions ANY specific topic, project, "
+                        "person, feature, or past event by name, classify as SEARCH.\n\n"
+                        "Examples:\n"
+                        "\"haha nice\" → FILLER\n"
+                        "\"sounds good\" → FILLER\n"
+                        "\"yeah I figured\" → FILLER\n"
+                        "\"oh cool\" → FILLER\n"
+                        "\"What is EJ's dog named?\" → SEARCH\n"
+                        "\"remember when we discussed the voice pipeline?\" → SEARCH\n"
+                        "\"that reminds me of our book conversation\" → SEARCH\n"
+                        "\"can you check on the project status\" → SEARCH\n"
+                        "\"that reminds me of something about the voice pipeline\" → SEARCH\n"
+                        "\"didn't we already figure this out last week\" → SEARCH\n\n"
+                        f"Message: \"{req.text}\"\n\n"
+                        "Reply with exactly one word: FILLER or SEARCH"
+                    )
+                }
+            ]
+
+            prompt = tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True
+            )
+
+            inputs = tokenizer(
+                prompt,
+                return_tensors="pt",
+                add_special_tokens=False,
+                truncation=True,
+                max_length=512
+            )
+            input_ids = inputs["input_ids"].to(decoder.device)
+            attention_mask = inputs["attention_mask"].to(decoder.device)
+
+            with torch.no_grad():
+                output_ids = decoder.generate(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    max_new_tokens=req.max_tokens,
+                    do_sample=False,
+                    top_p=None,
+                    temperature=None,
+                    pad_token_id=tokenizer.pad_token_id,
+                )
+
+            # Decode only the new tokens
+            new_tokens = output_ids[0][input_ids.shape[1]:]
+            raw_output = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+
+        finally:
+            # Always re-enable LoRA adapters
+            decoder.enable_adapters()
+            # Restore the adapter set that was active
+            model._set_all_adapters()
+
+        elapsed_ms = (time.time() - t0) * 1000
+
+        # Parse classification
+        raw_upper = raw_output.upper()
+        if "SEARCH" in raw_upper:
+            classification = "SEARCH"
+        elif "FILLER" in raw_upper:
+            classification = "FILLER"
+        else:
+            # Default to SEARCH if unclear (better to search unnecessarily than miss)
+            classification = "SEARCH"
+            log.warning(f"  ⚠️ Ambiguous output: '{raw_output}', defaulting to SEARCH")
+
+        log.info(f"  → {classification} ({elapsed_ms:.0f}ms, raw: '{raw_output}')")
+
+        return ClassifyResponse(
+            classification=classification,
+            raw_output=raw_output,
+            time_ms=round(elapsed_ms, 1)
+        )
+
+    except Exception as e:
+        elapsed_ms = (time.time() - t0) * 1000
+        log.error(f"  ❌ Classification failed ({elapsed_ms:.0f}ms): {e}")
+        # On error, default to SEARCH (fail open)
+        return ClassifyResponse(
+            classification="SEARCH",
+            raw_output=f"ERROR: {str(e)}",
+            time_ms=round(elapsed_ms, 1)
+        )
 
 
 @app.post("/retrieve", response_model=RetrieveResponse)

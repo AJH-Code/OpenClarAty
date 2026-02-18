@@ -122,11 +122,43 @@ Store a new memory (compresses and indexes).
 }
 ```
 
+### `POST /classify`
+Smart message classification using the already-loaded Mistral-7B (LoRA adapters temporarily disabled). Determines if a message is worth searching.
+
+```json
+{
+  "text": "user's message",
+  "max_tokens": 3
+}
+```
+
+Returns `{"classification": "FILLER" | "SEARCH", "time_ms": 250}`. ~250ms per call, zero additional VRAM.
+
 ### `GET /stats`
 Memory system statistics.
 
 ### `GET /memories?limit=20&offset=0`
 Browse stored memories (for debugging).
+
+## Smart Message Classification
+
+Not every message needs a memory search. "lol nice" doesn't need to query 840 memories. OpenClarAty includes a 3-tier gate:
+
+```
+Message arrives
+  │
+  ├─ Tier 1: Keyword filter (instant, free)
+  │  Ultra-short messages, known filler phrases ("ok", "yep", emojis)
+  │
+  ├─ Tier 2: Mistral-7B classifier (~250ms)
+  │  Reuses the already-loaded model with LoRA disabled
+  │  "haha yeah that makes sense" → FILLER (skip)
+  │  "remember when we talked about the voice pipeline?" → SEARCH (proceed)
+  │
+  └─ Tier 3: Full CLaRa + RAG retrieval (only for SEARCH)
+```
+
+The classifier adds ~250ms but saves the full retrieval cost (~1-2s) for conversational filler. Messages >200 chars skip classification (assumed to have content).
 
 ## Performance
 
@@ -134,6 +166,7 @@ Benchmarked with INT8 quantization on an RTX 5060 Ti (16GB):
 
 | Operation | Time | Notes |
 |-----------|------|-------|
+| Classify (Mistral) | ~250ms | LoRA-disabled, 3 tokens max |
 | Search (FAISS) | ~137ms | Latent-space similarity |
 | Generate (summary) | ~650-1100ms | CLaRa decoder reasoning |
 | Store (compress) | ~500ms | Per message |
@@ -165,23 +198,22 @@ This is fundamentally different from traditional RAG where text → embeddings �
 
 ```
 OpenClarAty/
-├── service/              # FastAPI memory service
-│   ├── clara_service.py  # Main server
-│   ├── requirements.txt  # Python dependencies
-│   └── download_model.py # Model downloader
-├── skill/                # OpenClaw skill integration
-│   ├── SKILL.md          # Skill definition
+├── service/                # FastAPI memory service
+│   ├── clara_service.py    # Main server (retrieve, store, classify)
+│   ├── ingest.py           # Bulk ingestion from session files
+│   ├── store_overlimit.py  # Handle over-limit exchanges
+│   ├── requirements.txt    # Python dependencies
+│   └── download_model.py   # Model downloader
+├── plugin/                 # OpenClaw plugin (auto-recall)
+│   ├── index.ts            # Dual retrieval: CLaRa + RAG
+│   └── openclaw.plugin.json # Plugin manifest
+├── skill/                  # OpenClaw skill integration
+│   ├── SKILL.md            # Skill definition
 │   └── scripts/
-│       └── clara_retrieve.sh  # Retrieval script
-├── docker/               # Docker deployment
-│   ├── Dockerfile
-│   └── docker-compose.yml
-├── tests/                # Test suite
+│       └── clara_retrieve.sh  # Manual retrieval script
+├── tests/                  # Test suite
 │   └── seed_test_memories.py
-├── examples/             # Usage examples
-│   └── voice_pipeline.md
-└── docs/                 # Documentation
-    └── architecture.md
+└── docs/                   # Documentation
 ```
 
 ## Roadmap
@@ -190,7 +222,12 @@ OpenClarAty/
 - [x] FastAPI memory service with search + generation
 - [x] OpenClaw skill integration
 - [x] Hybrid output format (summary + listed memories)
-- [ ] Auto-ingestion of conversations
+- [x] Bulk ingestion from session history (ingest.py + store_overlimit.py)
+- [x] Smart message classifier (Mistral-7B, reuses loaded model)
+- [x] OpenClaw plugin with dual retrieval (CLaRa + RAG) and score merging
+- [x] 3-tier message gate (keyword → classifier → retrieval)
+- [ ] Auto-ingestion of new conversations (continuous)
+- [ ] Context-enriched retrieval (pull compaction summaries + daily notes around hits)
 - [ ] Configurable similarity thresholds
 - [ ] Session-aware memory (separate memory pools per conversation)
 - [ ] Web debug UI for memory visualization
