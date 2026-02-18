@@ -134,11 +134,59 @@ Smart message classification using the already-loaded Mistral-7B (LoRA adapters 
 
 Returns `{"classification": "FILLER" | "SEARCH", "time_ms": 250}`. ~250ms per call, zero additional VRAM.
 
+### `POST /enrich`
+Combined message enrichment — classifies, detects emotions, extracts topic, and optionally summarizes in a single Mistral-7B call.
+
+```json
+{
+  "text": "user's message",
+  "max_tokens": 150
+}
+```
+
+Returns:
+```json
+{
+  "classification": "SEARCH",
+  "emotions": ["curiosity", "determination"],
+  "topic": "technical",
+  "summary": "User asking about the voice pipeline architecture...",
+  "time_ms": 450
+}
+```
+
+For FILLER messages, exits early (~250ms). For SEARCH messages, provides full enrichment (~400-500ms). Summary only generated for messages >256 chars.
+
 ### `GET /stats`
 Memory system statistics.
 
 ### `GET /memories?limit=20&offset=0`
 Browse stored memories (for debugging).
+
+## 🧠 Brain Viewer — Memory Visualization
+
+OpenClarAty includes an interactive web-based memory browser with a 3D brain visualization.
+
+![Brain Viewer Timeline](docs/brain-viewer-timeline.jpg)
+
+**Features:**
+- **Timeline View** — Browse memories by date with full user/assistant exchanges
+- **3D Brain Model** — Three.js brain with regions that light up based on memory content (limbic for emotions, frontal for planning, temporal for language)
+- **Emotion & Topic Tagging** — Auto-detected emotions (joy, frustration, curiosity, anxiety, pride...) and topics (technical, creative writing, personal info...)
+- **Memory Detail Modal** — Full metadata, MSE loss, session ID, connected memories, and a mini connection graph
+- **Search & Filter** — Text search, emotion dropdown, topic dropdown
+- **Memory Graph** — Visual node graph showing how memories connect by session proximity and shared topics
+
+![Brain Viewer Detail](docs/brain-viewer-detail.jpg)
+
+### Running the Brain Viewer
+
+```bash
+cd brain-viewer/
+python3 server.py  # Serves on port 8400
+```
+
+Then open `http://your-server:8400` in a browser. Requires the CLaRa memory service running on port 8300.
 
 ## Smart Message Classification
 
@@ -211,9 +259,15 @@ OpenClarAty/
 │   ├── SKILL.md            # Skill definition
 │   └── scripts/
 │       └── clara_retrieve.sh  # Manual retrieval script
+├── brain-viewer/           # 3D memory visualization web app
+│   ├── index.html          # Main page
+│   ├── app.js              # App logic, API calls, filtering
+│   ├── brain.js            # Three.js 3D brain model
+│   ├── styles.css          # Dark theme styling
+│   └── server.py           # Simple HTTP server (port 8400)
 ├── tests/                  # Test suite
 │   └── seed_test_memories.py
-└── docs/                   # Documentation
+└── docs/                   # Documentation & screenshots
 ```
 
 ## Roadmap
@@ -230,7 +284,8 @@ OpenClarAty/
 - [ ] Context-enriched retrieval (pull compaction summaries + daily notes around hits)
 - [ ] Configurable similarity thresholds
 - [ ] Session-aware memory (separate memory pools per conversation)
-- [ ] Web debug UI for memory visualization
+- [x] Brain Viewer — interactive 3D memory visualization (Three.js)
+- [x] `/enrich` endpoint — combined classify + emotions + topic + summary in single Mistral call
 
 ### Search
 - [ ] Document search — index directories of files (PDFs, markdown, code) with chunking for knowledge base retrieval
@@ -240,7 +295,8 @@ OpenClarAty/
 ### Associative Memory (Experimental)
 - [ ] **Memory mapping** — build associative links between memories when they co-activate during retrieval. When memory A and memory B are retrieved together, strengthen the link between them
 - [ ] **Tagged associations** — memories linked with semantic tags (emotions, topics, people, places). Retrieval follows association chains, not just direct similarity
-- [ ] **Emotional state integration** — link memories to emotional context at time of storage and retrieval. "Happy" memories cluster together, "problem-solving" memories connect to each other. Emotional state can bias retrieval toward contextually appropriate memories
+- [ ] **Dual-perspective emotion tracking** — each memory stored with assistant's emotions AND perceived user emotions. Persistent emotional state that evolves over time and biases retrieval (mood-congruent memory)
+- [ ] **Emotional state integration** — link memories to emotional context at time of storage and retrieval. "Happy" memories cluster together, "problem-solving" memories connect to each other. Current mood biases which memories surface first
 - [ ] **Inspiration chains** — when a memory is retrieved, follow its association links to surface *related but non-obvious* memories. The kind of lateral connections that feel like genuine insight: dogs → Endor → happiness → morning walks → that song about sunrise → creative project ideas
 
 The goal: memory that doesn't just *search* — it **associates**, the way human memory works. You don't look up memories by keyword. One thought leads to another through chains of meaning, emotion, and experience.

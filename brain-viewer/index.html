@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLaRa Memory Brain Visualizer</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <!-- Three.js Canvas Background -->
+  <canvas id="brain-canvas"></canvas>
+
+  <!-- Top Bar -->
+  <header id="top-bar">
+    <div class="logo">
+      <span class="logo-icon">&#x1F9E0;</span>
+      <h1>CLaRa <span class="accent">Memory</span> Visualizer</h1>
+    </div>
+    <div class="search-container">
+      <input type="text" id="search-input" placeholder="Search memories..." autocomplete="off">
+      <div class="search-filters">
+        <select id="filter-emotion">
+          <option value="">All Emotions</option>
+        </select>
+        <select id="filter-topic">
+          <option value="">All Topics</option>
+        </select>
+      </div>
+    </div>
+    <div class="stats-badge" id="stats-badge">
+      <span id="stats-total">-</span> memories
+    </div>
+  </header>
+
+  <!-- Main Layout -->
+  <div id="main-layout">
+    <!-- Left Sidebar: Day List -->
+    <aside id="sidebar">
+      <h2>Timeline</h2>
+      <div id="day-list"></div>
+    </aside>
+
+    <!-- Center Panel: Memory List -->
+    <main id="memory-panel">
+      <div id="memory-panel-header">
+        <h2 id="panel-title">Select a day</h2>
+        <span id="panel-count"></span>
+      </div>
+      <div id="memory-list"></div>
+      <div id="empty-state">
+        <div class="empty-brain-icon">&#x1F9E0;</div>
+        <p>Select a day from the timeline to explore memories</p>
+      </div>
+    </main>
+  </div>
+
+  <!-- Memory Detail Modal -->
+  <div id="detail-overlay" class="hidden">
+    <div id="detail-modal">
+      <button id="detail-close">&times;</button>
+      <div id="detail-content">
+        <div id="detail-header">
+          <span id="detail-timestamp"></span>
+          <span id="detail-topic" class="tag"></span>
+        </div>
+        <div id="detail-text"></div>
+        <div id="detail-metadata">
+          <h3>Metadata</h3>
+          <div id="detail-meta-grid"></div>
+        </div>
+        <div id="detail-emotions">
+          <h3>Emotions</h3>
+          <div id="detail-emotion-tags"></div>
+        </div>
+        <div id="detail-related">
+          <h3>Connected Memories</h3>
+          <div id="detail-related-list"></div>
+        </div>
+        <!-- Mini connection graph -->
+        <div id="detail-graph">
+          <h3>Memory Graph</h3>
+          <canvas id="graph-canvas"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay">
+    <div class="loader">
+      <div class="loader-brain">&#x1F9E0;</div>
+      <div class="loader-text">Loading memories...</div>
+      <div class="loader-bar"><div class="loader-fill"></div></div>
+    </div>
+  </div>
+
+  <script type="module" src="brain.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
