@@ -179,6 +179,9 @@ OpenClarAty includes an interactive web-based memory browser with a 3D brain vis
 
 ![Brain Viewer Detail](docs/brain-viewer-detail.jpg)
 
+![Brain Viewer Graph](docs/brain-viewer-graph.jpg)
+*Memory connection graph showing emotion nodes (pink), topic (purple), related memories (cyan), and source (gold)*
+
 ### Running the Brain Viewer
 
 ```bash
