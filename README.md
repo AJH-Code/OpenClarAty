@@ -1,4 +1,4 @@
-# OpenClarAty 🧠
+# OpenClarAty 🦋
 
 **Infinite memory for AI agents — compressed latent-space retrieval for real-time conversation.**
 
@@ -130,7 +130,7 @@ Browse stored memories (for debugging).
 
 ## Performance
 
-With INT8 quantization on an RTX 5080 (16GB):
+Benchmarked with INT8 quantization on an RTX 5060 Ti (16GB):
 
 | Operation | Time | Notes |
 |-----------|------|-------|
@@ -186,6 +186,7 @@ OpenClarAty/
 
 ## Roadmap
 
+### Core
 - [x] FastAPI memory service with search + generation
 - [x] OpenClaw skill integration
 - [x] Hybrid output format (summary + listed memories)
@@ -193,9 +194,19 @@ OpenClarAty/
 - [ ] Configurable similarity thresholds
 - [ ] Session-aware memory (separate memory pools per conversation)
 - [ ] Web debug UI for memory visualization
+
+### Search
+- [ ] Document search — index directories of files (PDFs, markdown, code) with chunking for knowledge base retrieval
+- [ ] Dual-layer hierarchical search — search conversation summaries first, then drill into matching conversations for specific context
 - [ ] Real-time voice pipeline integration
-- [ ] Hierarchical search (session summaries → drill into details)
-- [ ] Multi-model support (INT4/INT8/FP16)
+
+### Associative Memory (Experimental)
+- [ ] **Memory mapping** — build associative links between memories when they co-activate during retrieval. When memory A and memory B are retrieved together, strengthen the link between them
+- [ ] **Tagged associations** — memories linked with semantic tags (emotions, topics, people, places). Retrieval follows association chains, not just direct similarity
+- [ ] **Emotional state integration** — link memories to emotional context at time of storage and retrieval. "Happy" memories cluster together, "problem-solving" memories connect to each other. Emotional state can bias retrieval toward contextually appropriate memories
+- [ ] **Inspiration chains** — when a memory is retrieved, follow its association links to surface *related but non-obvious* memories. The kind of lateral connections that feel like genuine insight: dogs → Endor → happiness → morning walks → that song about sunrise → creative project ideas
+
+The goal: memory that doesn't just *search* — it **associates**, the way human memory works. You don't look up memories by keyword. One thought leads to another through chains of meaning, emotion, and experience.
 
 ## Credits
 
